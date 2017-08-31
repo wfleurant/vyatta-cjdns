@@ -108,13 +108,13 @@ def peerStats(cjdns,up=False,verbose=False,human_readable=False):
 
         for peer in allPeers:
             ip = PublicToIp6_convert(peer['publicKey'])
-			
+
             b_in  = peer['bytesIn']
             b_out = peer['bytesOut']
             if human_readable:
 				b_in  = sizeof_fmt(b_in)
 				b_out = sizeof_fmt(b_out)
-            
+
             p = STAT_FORMAT % (ip, peer['version'], peer['switchLabel'],
                                str(b_in), str(b_out), peer['state'],
                                peer['duplicates'], peer['lostPackets'],

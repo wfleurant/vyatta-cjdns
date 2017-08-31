@@ -2,15 +2,20 @@
 
 PACKAGE=vyatta-cjdns
 
-DESTDIR=/opt/vyatta
-
+DESTDIR=$(PWD)/opt/vyatta
 TEMPLATECFGDIR=$DESTDIR/share/vyatta-cfg/template
 TEMPLATEOPDIR=$DESTDIR/share/vyatta-op/template
-SBINDIR=$DESTDIR/sbin/
+# SBINDIR=$DESTDIR/sbin/
 
-BUILDDIR_CJD=/tmp/cjdns
+BUILDDIR_CJD=/dev/shm/tmp/cjdns
 
 PREFIX='mipsel-linux-gnu-'
+
+CJDNS_BRANCH='master'
+CJDNS_REMOTE='github.com/wfleurant/cjdns'
+
+#CJDNS_BRANCH='crashey'
+#CJDNS_REMOTE='github.com/cjdelisle/cjdns'
 
 CFLAGS:=$(shell dpkg-buildflags --get CFLAGS)
 LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS)
@@ -31,14 +36,14 @@ cleanpackage:
 	rm ../data.tar.gz
 
 cjdnsclone:
-	git clone https://github.com/cjdelisle/cjdns $(BUILDDIR_CJD)
-	touch /tmp/cjdns/cjdroute
+	git clone https://$(CJDNS_REMOTE) -b $(CJDNS_BRANCH) $(BUILDDIR_CJD)
+	touch $(BUILDDIR_CJD)/cjdroute
 
 cjdnsbuild:
 	cd $(BUILDDIR_CJD) && TARGET_ARCH='mips' CROSS_COMPILE=$(PREFIX) CROSS_CFLAGS="-mips32r2" Seccomp_NO=1 ./cross-do
 
 cjdnsstage:
-	cp $(BUILDDIR_CJD)/cjdroute opt/vyatta/sbin/cjdroute
+	cp $(BUILDDIR_CJD)/cjdroute $(DESTDIR)/sbin/cjdroute
 
 clean:
 	rm -rf sbin/cjdroute
