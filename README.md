@@ -1,65 +1,24 @@
-# cjdns for Ubiquiti EdgeOS
+# cjdns for Ubiquiti EdgeOS / VyOS
 
 ### Introduction
 
-This is a cjdns distributable package for Ubiquiti EdgeOS. It supports configuration through the standard configuration editor and should therefore be very straight-forward to deploy.
+This is a cjdns distributable package for Ubiquiti EdgeOS, VyOS and potentially other Vyatta-based systems. It supports configuration through the standard configuration editor and should therefore be very straight-forward to deploy.
 
 At this time this package is in very early stages of development, but the ultimate aim is to provide binary builds for some commonly-used platforms with pre-built cjdns binaries.
 
 ### Compatibility
 
-|                       | Architecture | Compatible |                      Notes                     |
-|-----------------------|:------------:|:----------:|:----------------------------------------------:|
-|    EdgeRouter X (ERX) |    mipsel    |     Yes    | Builds with crossbuild-essential, see below    |
-| EdgeRouter Lite (ERL) |    mips64    |     Yes    | Builds with Codescape SDK as mips32, see below |
+|                       | Architecture | Compatible |                      Notes                                    |
+|-----------------------|:------------:|:----------:|:-------------------------------------------------------------:|
+|    EdgeRouter X (ERX) |    mipsel    |     Yes    |                                                               |
+| EdgeRouter Lite (ERL) |    mips64    |     Yes    |                                                               |
+|       VyOS 1.1.x      | i386, amd64  |     Yes    | No support for IPv6 masquerade                                |
 
-### Building for EdgeRouter X
+### Installation
 
-On 64-bit Debian Jessie, start by installing the toolchain:
+Either download or build a release and copy it to the router, then install it:
 ```
-echo "deb http://emdebian.org/tools/debian/ jessie main" >> /etc/apt/sources.list
-
-wget http://emdebian.org/tools/debian/emdebian-toolchain-archive.key
-apt-key add emdebian-toolchain-archive.key
-
-dpkg --add-architecture mipsel
-apt-get update
-apt-get install crossbuild-essential-mipsel
-```
-Compile the package then by cloning the repository and running 'make':
-```
-make
-```
-The package `vyatta-cjdns.deb` will be created in the parent directory. Copy it to the EdgeRouter and install it:
-```
-sudo dpkg -i vyatta-cjdns.deb
-```
-
-### Building for EdgeRouter Lite
-
-On 64-bit Debian Jessie, start by installing the build-essential package:
-```
-sudo apt-get update
-sudo apt-get install -y build-essential
-```
-So far the only proven working toolchain is the Codescape SDK 2015.01.7 (and 2015.06.05).
-
-Download the toolchain, assuming your homedir:
-```
-wget http://codescape-mips-sdk.imgtec.com/components/toolchain/2015.06-05/Codescape.GNU.Tools.Package.2015.06-05.for.MIPS.MTI.Linux.CentOS-5.x86_64.tar.gz
-tar xf Codescape.GNU.Tools.Package.2015.06-05.for.MIPS.MTI.Linux.CentOS-5.x86_64.tar.gz
-```
-Add the bin dir to your `PATH` variable:
-```
-PATH=$HOME/mips-mti-linux-gnu/2015.06-05/bin:$PATH
-```
-Clone the repository, edit the file `vyatta-cjdns/debian/control` and change `Architecture: mipsel` to `Architecture: mips`, and then initiate the build by running:
-```
-PREFIX='mips-mti-linux-gnu-' make -e
-```
-The package `vyatta-cjdns.deb` will be created in the parent directory. Copy it to the EdgeRouter and install it:
-```
-sudo dpkg -i vyatta-cjdns.deb
+sudo dpkg -i vyatta-cjdns-x.x.x-xxxxxx.deb
 ```
 
 ### Configuration
@@ -68,21 +27,34 @@ All configuration is entered through the CLI. `set` commands, as listed below, w
 
 cjdroute is restarted automatically after a configuration change is made.
 
+### Initial
+
+Start by creating the default configuration on the interface:
+```
+configure
+set interfaces cjdns tun0
+set interfaces cjdns tun0 description CJDNS
+commit
+```
+This automatically generates a new private key and then populates the IPv6 address, public key, private key and admin socket details into the config, as shown with `show interfaces cjdns tun0` in the configure view.
+
 #### Peerings
 
-To establish a peering is straight-forward; replace `bind-address a.b.c.d:e` with the address you want cjdroute to listen on in `ip:port` format and replace `peers a.b.c.d:e` with the `ip:port` address of your peer:
+To establish a peering is straight-forward; replace `bind-address a.b.c.d:e` with the address you want cjdroute to listen on in `ip:port` format and replace `peers a.b.c.d:e` with the `ip:port` address of your peer. Use `login` to specify the login name (which is sometimes `default-login`), and `peername` to identify the peering friendly name (as seen in the peering stats):
 ```
 configure
 set interfaces cjdns tun0 udp-interface 0 bind-address a.b.c.d:e
 set interfaces cjdns tun0 udp-interface 0 peers a.b.c.d:e password xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 set interfaces cjdns tun0 udp-interface 0 peers a.b.c.d:e publickey xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.k
+set interfaces cjdns tun0 udp-interface 0 peers a.b.c.d:e login xxxxxxxx
+set interfaces cjdns tun0 udp-interface 0 peers a.b.c.d:e peername xxxxxxxx
 commit
 ```
 To configure beacons to automatically peer with other devices on your network using ethernet (assuming `switch0` is your internal interface):
 ```
 configure
 set interfaces cjdns tun0 ethernet-interface 0 bind-interface switch0
-set interfaces cjdns tun0 ethernet-interface 0 beacon 2
+set interfaces cjdns tun0 ethernet-interface 0 beacon listen-send
 commit
 ```
 To configure new authorized passwords for incoming connections:
@@ -95,7 +67,9 @@ commit
 
 #### Identity
 
-An IPv6 address and a keypair are automatically generated when you create a new cjdns interface. The `publickey`, `privatekey` and `ipv6` fields will be automatically populated with these. To manually configure your own IPv6 address and keypair (i.e. to bring in an existing keypair from another machine):
+An IPv6 address and a keypair are automatically generated when you create a new cjdns interface. The `publickey`, `privatekey` and `ipv6` fields will be automatically populated with these.
+
+To override the automatically generated keypair and manually configure your own IPv6 address and keypair (i.e. to bring in an existing keypair from another machine):
 ```
 configure
 set interfaces cjdns tun0 publickey xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.k
@@ -116,6 +90,20 @@ set firewall ipv6-name CJD_LOCAL rule 20 action drop
 set firewall ipv6-name CJD_LOCAL rule 20 state invalid enable
 set interfaces cjdns tun0 firewall local ipv6-name CJD_LOCAL
 ```
+
+#### Masquerade
+
+If you want to allow other IPv6 hosts on your network to communicate through cjdns, you can configure an IPv6 masquerade rule. All traffic sent from other hosts on the network through the cjdns interface will be NAT'd.
+
+For example:
+```
+configure
+set interfaces cjdns tun0 masquerade from xxxx:xxxx:xxxx::/48
+commit
+```
+If you have multiple IPv6 subnets, then they can be configured individually by setting multiple `masquerade from` source ranges. Both private/ULA and public IPv6 subnets are acceptable.
+
+IPv6 masquerade is not supported on VyOS 1.1.x due to missing support in the kernel.
 
 #### IP Tunnel
 
@@ -163,8 +151,25 @@ set system task-scheduler task check-cjdns interval 1m
 commit
 ```
 
+### Manual Configuration
+
+If you prefer not to make use of the EdgeRouter CLI to manage `cjdroute.conf`, or you prefer to use another utility to manage `cjdroute.conf`, it is still possible to use the vyatta-cjdns package, with the following caveats:
+
+- The interface will not be recognised by the EdgeRouter GUI, or by operational commands in the CLI such as `show interfaces`
+- It may not be possible to configure firewall rules or other services for the cjdns interface using the EdgeRouter GUI or CLI as a result
+- If you are not careful, the EdgeRouter GUI or CLI may allow you to incorrectly define a different tunnel interface using the same `tunX` name as the cjdns tunnel
+- If a cjdns tunnel is defined later in the EdgeRouter GUI or CLI with the same `tunX` name, the configuration may be overwritten partially or entirely
+
+To generate the configuration, choose a `tunX` interface which is not in use by anything else on the system, and then generate the config into `/config/cjdroute.tunX.conf`, uncommenting and amending the `tunDevice` directive in the config file to always use the chosen `tunX` interface. For example, to use `tun1`:
+```
+/opt/vyatta/sbin/cjdroute --genconf > /config/cjdroute.tun1.conf
+sed -i 's/\/\/"tunDevice": "tun0"/"tunDevice": "tun1"/' /config/cjdroute.tun1.conf
+restart cjdns tun1
+```
+Use the Crash Detection scheduled task above to automatically check and start cjdns on a given interval, as it will not be automatically started by the EdgeRouter configuration system when using this method.
+
 ### Footnotes
 
-There is very little input validation right now on the configuration, so if you enter badly-formed config then `cjdroute` will simply fail to start.
+If cjdns fails to start, you can find logging output in `/tmp/cjdroute.tunX.log`, where `tunX` is the specified interface.
 
 You may also need to manually adjust your firewall to allow traffic on the `bind-address` that you specified.

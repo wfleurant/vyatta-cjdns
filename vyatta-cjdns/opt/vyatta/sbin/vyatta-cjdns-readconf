@@ -1,12 +1,44 @@
 #!/usr/bin/python
+#
+# vyatta-cjdns - A cjdns package for Ubiquiti EdgeOS, VyOS and other
+# Vyatta-based systems.
+# Copyright (C) 2015 Neil Alexander T.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
 
 import json
 import sys
+import os
 
+configfile = '/config/cjdroute.' + sys.argv[1] + '.conf'
 data = {}
 
-with open('/config/cjdroute.' + sys.argv[1] + '.conf') as data_file:
-    data = json.load(data_file)
+try:
+    with open(configfile) as data_file:
+        data = json.load(data_file)
+except:
+    os.system('/opt/vyatta/sbin/cjdroute --cleanconf < ' + configfile + ' > ' + configfile + ".tmp")
+
+    try:
+        with open(configfile + ".tmp") as data_file:
+            data = json.load(data_file)
+    except:
+        print "Unable to parse " + configfile + " - file malformed?"
+        exit -1
+    else:
+        os.system("mv " + configfile + ".tmp " + configfile)
 
 def getAdminAddress():
     print data['admin']['bind']
